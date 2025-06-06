@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="page-title">Emergency Fund Calculator</h1>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Base Buffer Calculation</h5>
+            <form id="baseBufferForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="avgMonthlyExpenses">Average Monthly Expenses (μ)</label>
+                            <input type="text" class="form-control" id="avgMonthlyExpenses" required value="{{ "
+                                {:,}".format(avg_monthly_expenses) }}" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="stdDevExpenses">Standard Deviation of Monthly Expenses (σ)</label>
+                            <input type="text" class="form-control" id="stdDevExpenses" required value="{{ "
+                                {:,}".format(std_dev_expenses|round|int) }}" readonly>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="riskFactor">Risk Factor (Z)</label>
+                            <select class="form-control" id="riskFactor" required>
+                                <option value="1.0">1.0 - Low Volatility</option>
+                                <option value="1.5">1.5 - High Volatility</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="bufferMonths">Buffer Months (M)</label>
+                            <select class="form-control" id="bufferMonths" required>
+                                <option value="1">1 Month - Living with Family</option>
+                                <option value="2">2 Months - Semi-Independent</option>
+                                <option value="3">3 Months - Fully Independent</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Risk Buffer Calculation</h5>
+            <div id="scenarioContainer">
+                <div class="scenario-item mb-3">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Emergency Type</label>
+                                <select class="form-control emergency-type" required>
+                                    <option value="">Select Emergency</option>
+                                    <option value="medical">Medical Emergency</option>
+                                    <option value="device">Device Loss/Damage</option>
+                                    <option value="job">Job Loss</option>
+                                    <option value="market">Market Shock</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Average Loss (μ_shock)</label>
+                                <input type="text" class="form-control avg-loss" required>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Probability (%)</label>
+                                <input type="number" class="form-control probability" required>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group">
+                                <label>Impact Months</label>
+                                <input type="number" class="form-control impact-months" required>
+                            </div>
+                        </div>
+                        <div class="col-md-1">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button class="btn btn-danger btn-block remove-scenario">×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary mt-3" id="addScenario">Add Another Scenario</button>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Results</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <h6>Base Buffer</h6>
+                    <h3 id="baseBufferResult">0</h3>
+                </div>
+                <div class="col-md-4">
+                    <h6>Risk Buffer</h6>
+                    <h3 id="riskBufferResult">0</h3>
+                </div>
+                <div class="col-md-4">
+                    <h6>Total Emergency Fund</h6>
+                    <h3 id="totalEmergencyFund">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-primary btn-lg btn-block" id="calculateButton">Calculate Emergency Fund</button>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const addScenarioBtn = document.getElementById('addScenario');
+        const scenarioContainer = document.getElementById('scenarioContainer');
+        const calculateButton = document.getElementById('calculateButton');
+
+        // Add new scenario
+        addScenarioBtn.addEventListener('click', function () {
+            const newScenario = document.querySelector('.scenario-item').cloneNode(true);
+            newScenario.querySelectorAll('input').forEach(input => input.value = '');
+            newScenario.querySelector('select').value = '';
+            scenarioContainer.appendChild(newScenario);
+        });
+
+        // Remove scenario
+        scenarioContainer.addEventListener('click', function (e) {
+            if (e.target.classList.contains('remove-scenario')) {
+                if (document.querySelectorAll('.scenario-item').length > 1) {
+                    e.target.closest('.scenario-item').remove();
+                }
+            }
+        });
+
+        // Calculate emergency fund
+        calculateButton.addEventListener('click', function () {
+            // Base Buffer Calculation
+            const avgMonthlyExpenses = Number(document.getElementById('avgMonthlyExpenses').value.replace(/,/g, ''));
+            const stdDevExpenses = Number(document.getElementById('stdDevExpenses').value.replace(/,/g, ''));
+            const riskFactor = Number(document.getElementById('riskFactor').value);
+            const bufferMonths = Number(document.getElementById('bufferMonths').value);
+
+            const baseBuffer = (avgMonthlyExpenses + (stdDevExpenses * riskFactor)) * bufferMonths;
+
+            // Risk Buffer Calculation
+            let riskBuffer = 0;
+            document.querySelectorAll('.scenario-item').forEach(scenario => {
+                const avgLoss = Number(scenario.querySelector('.avg-loss').value.replace(/,/g, ''));
+                const probability = parseFloat(scenario.querySelector('.probability').value) / 100;
+                const impactMonths = parseFloat(scenario.querySelector('.impact-months').value);
+
+                riskBuffer += avgLoss * probability * impactMonths;
+            });
+
+            // Total Emergency Fund
+            const totalEmergencyFund = baseBuffer + riskBuffer;
+
+            // Update results
+            document.getElementById('baseBufferResult').textContent = Math.round(baseBuffer).toLocaleString();
+            document.getElementById('riskBufferResult').textContent = Math.round(riskBuffer).toLocaleString();
+            document.getElementById('totalEmergencyFund').textContent = Math.round(totalEmergencyFund).toLocaleString();
+        });
+
+        // Định dạng số có dấu phẩy khi nhập cho tất cả các trường .avg-loss
+        function formatNumberWithCommas(x) {
+            if (!x) return '';
+            const parts = x.toString().split(".");
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            return parts.join(".");
+        }
+
+        function setupAvgLossFormatting() {
+            document.querySelectorAll('.avg-loss').forEach(input => {
+                input.addEventListener('input', function (e) {
+                    // Lưu vị trí con trỏ
+                    const selectionStart = this.selectionStart;
+                    // Loại bỏ dấu phẩy cũ
+                    let value = this.value.replace(/,/g, '');
+                    // Nếu không phải số thì bỏ qua
+                    if (isNaN(value) || value === '') {
+                        this.value = '';
+                        return;
+                    }
+                    // Định dạng lại số
+                    this.value = formatNumberWithCommas(value);
+                    // Đặt lại vị trí con trỏ về cuối
+                    this.setSelectionRange(this.value.length, this.value.length);
+                });
+            });
+        }
+
+        // Gọi hàm khi trang tải và khi thêm scenario mới
+        setupAvgLossFormatting();
+        document.getElementById('addScenario').addEventListener('click', function () {
+            setTimeout(setupAvgLossFormatting, 100); // Đảm bảo các input mới cũng được gắn sự kiện
+        });
+    });
+</script>
+{% endblock %}
