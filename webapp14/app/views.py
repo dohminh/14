@@ -233,12 +233,12 @@ def cashflows():
     # Filter by selected month only if a specific month is selected
     if selected_month != 'all':
         user_cashflows = user_cashflows.filter(
-            db.func.strftime('%Y-%m', Cashflow.date) == selected_month
+            func.to_char(Cashflow.date, 'YYYY-MM') == selected_month
         )
     
     # Get all months that have cashflows for the dropdown
     months_query = db.session.query(
-        db.func.strftime('%Y-%m', Cashflow.date).label('month')
+        func.to_char(Cashflow.date, 'YYYY-MM').label('month')
     ).filter_by(user_id=current_user.id).distinct().order_by('month').all()
     
     # Create month options list with 'All Transactions' as first option
@@ -321,7 +321,7 @@ def budget():
     cashflows = Cashflow.query.filter(
         Cashflow.user_id == current_user.id,
         Cashflow.kind == 'Expense',
-        func.strftime('%Y-%m', Cashflow.date) == current_month,
+        func.to_char(Cashflow.date, 'YYYY-MM') == current_month,
         ~Cashflow.payment_method.in_(['Account Payable', 'Account Receivable'])
     ).all()
     
